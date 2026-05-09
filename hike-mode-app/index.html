@@ -14,7 +14,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; overflow: hidden; font-family: 'Roboto', 'Helvetica Neue', sans-serif; }
 
-  #map { position: fixed; inset: 0; }
+  #map { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 
   /* ── Top bar ── */
   .topbar {
@@ -174,7 +174,7 @@
 </div>
 
 <script>
-const GOOGLE_API_KEY = 'YOUR_API_KEY_HERE';
+const GOOGLE_API_KEY = 'AIzaSyArytB7MYMy7kgMa9TGrbO9IT_ZQ00ry0M';
 
 const CENTER = { lat: 42.67, lng: 0.05 };
 const ZOOM   = 12;
@@ -196,53 +196,45 @@ const hikeStyle = [
   { featureType: 'administrative', elementType: 'labels', stylers: [{ lightness: 40 }] },
 ];
 
-const trails = [
-  {
-    name: 'Circo de Soaso',
-    difficulty: 'easy', distance: '9.2 km', time: '3h 20', elev: '+480m',
-    path: [
-      {lat:42.638,lng:-0.057},{lat:42.645,lng:-0.042},{lat:42.655,lng:-0.028},
-      {lat:42.662,lng:-0.015},{lat:42.671,lng:-0.002},{lat:42.678,lng:0.014},
-    ],
-    color: '#2e7d32', glow: '#66bb6a',
-  },
-  {
-    name: 'Faja de Pelay',
-    difficulty: 'medium', distance: '14.1 km', time: '5h 00', elev: '+820m',
-    path: [
-      {lat:42.640,lng:-0.055},{lat:42.650,lng:-0.040},{lat:42.660,lng:-0.020},
-      {lat:42.670,lng:0.000},{lat:42.678,lng:0.025},{lat:42.682,lng:0.040},
-    ],
-    color: '#f9a825', glow: '#ffd54f',
-  },
-  {
-    name: 'GR11 – High Pyrenean Route',
-    difficulty: 'hard', distance: '22.5 km', time: '8h 30', elev: '+1640m',
-    path: [
-      {lat:42.700,lng:-0.080},{lat:42.695,lng:-0.055},{lat:42.690,lng:-0.030},
-      {lat:42.688,lng:0.000},{lat:42.692,lng:0.030},{lat:42.698,lng:0.060},{lat:42.705,lng:0.090},
-    ],
-    color: '#c62828', glow: '#ef5350',
-  },
-  {
-    name: 'Lago de Marboré',
-    difficulty: 'medium', distance: '11.3 km', time: '4h 00', elev: '+1020m',
-    path: [
-      {lat:42.660,lng:0.020},{lat:42.668,lng:0.035},{lat:42.676,lng:0.055},
-      {lat:42.685,lng:0.072},{lat:42.692,lng:0.090},
-    ],
-    color: '#f9a825', glow: '#ffd54f',
-  },
-  {
-    name: 'Brèche de Roland',
-    difficulty: 'hard', distance: '18.0 km', time: '7h 00', elev: '+1380m',
-    path: [
-      {lat:42.675,lng:0.000},{lat:42.682,lng:0.015},{lat:42.690,lng:0.032},
-      {lat:42.700,lng:0.045},{lat:42.710,lng:0.055},
-    ],
-    color: '#c62828', glow: '#ef5350',
-  },
-];
+const COLORS = {
+  easy:     { stroke: '#2e7d32', glow: '#66bb6a' },
+  moderate: { stroke: '#f9a825', glow: '#ffd54f' },
+  hard:     { stroke: '#c62828', glow: '#ef5350' },
+};
+
+const SAC_LABEL = {
+  hiking: 'T1 – Hiking',
+  mountain_hiking: 'T2 – Mountain hiking',
+  demanding_mountain_hiking: 'T3 – Demanding mountain',
+  alpine_hiking: 'T4 – Alpine',
+  demanding_alpine_hiking: 'T5 – Demanding alpine',
+  difficult_alpine_hiking: 'T6 – Difficult alpine',
+};
+
+function pathDistanceKm(path) {
+  let km = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i-1], b = path[i];
+    const R = 6371;
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLng = (b.lng - a.lng) * Math.PI / 180;
+    const lat1 = a.lat * Math.PI / 180;
+    const lat2 = b.lat * Math.PI / 180;
+    const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+    km += 2 * R * Math.asin(Math.sqrt(h));
+  }
+  return km;
+}
+
+function estTime(km, difficulty) {
+  const speed = difficulty === 'easy' ? 4.5 : difficulty === 'moderate' ? 3.5 : 2.5;
+  const hours = km / speed;
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return h > 0 ? `${h}h ${m.toString().padStart(2,'0')}` : `${m} min`;
+}
+
+let trails = [];
 
 const pois = [
   { lat:42.678, lng:0.014,  type:'peak',      label:'Monte Perdido 3355m' },
@@ -256,44 +248,52 @@ let map, hikeOn = false, legendOpen = false;
 const polylines = [];
 const markers   = [];
 
-function initMap() {
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: CENTER, zoom: ZOOM,
-    mapTypeId: 'terrain',
-    disableDefaultUI: true,
-    gestureHandling: 'greedy',
-    restriction: { latLngBounds: BOUNDS, strictBounds: false },
-    zoomControl: false,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
-  });
+async function initMap() {
+  try {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: CENTER, zoom: ZOOM,
+      mapTypeId: 'terrain',
+      disableDefaultUI: true,
+      gestureHandling: 'greedy',
+      restriction: { latLngBounds: BOUNDS, strictBounds: false },
+      zoomControl: false,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+    });
 
-  trails.forEach(t => {
-    const halo = new google.maps.Polyline({
-      path: t.path, map,
-      strokeColor: t.glow, strokeOpacity: 0, strokeWeight: 20,
-      zIndex: 1, clickable: false,
-    });
-    const line = new google.maps.Polyline({
-      path: t.path, map,
-      strokeColor: '#b8a98a', strokeOpacity: 0.55, strokeWeight: 2.5,
-      zIndex: 2,
-    });
-    line.addListener('click', () => openSheet(t));
-    polylines.push({ line, halo, trail: t });
-  });
+    const res = await fetch('trails.json');
+    trails = await res.json();
+    console.log(`Loaded ${trails.length} real trails from OSM`);
 
-  const poiIcons = { peak: '⛰', refuge: '🏠', viewpoint: '👁' };
-  pois.forEach(p => {
-    const marker = new google.maps.Marker({
-      position: { lat: p.lat, lng: p.lng }, map,
-      label: { text: poiIcons[p.type], fontSize: '20px' },
-      title: p.label, visible: false, zIndex: 10,
-      icon: { url: 'data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>', scaledSize: new google.maps.Size(1,1) },
+    trails.forEach(t => {
+      const c = COLORS[t.difficulty];
+      const halo = new google.maps.Polyline({
+        path: t.path, map,
+        strokeColor: c.glow, strokeOpacity: 0, strokeWeight: 8,
+        zIndex: 1, clickable: false,
+      });
+      const line = new google.maps.Polyline({
+        path: t.path, map,
+        strokeColor: '#9a8a6a', strokeOpacity: 0.4, strokeWeight: 1.5,
+        zIndex: 2,
+      });
+      line.addListener('click', () => openSheet(t));
+      polylines.push({ line, halo, trail: t });
     });
-    markers.push(marker);
-  });
+
+    const poiIcons = { peak: '⛰', refuge: '🏠', viewpoint: '👁' };
+    pois.forEach(p => {
+      const marker = new google.maps.Marker({
+        position: { lat: p.lat, lng: p.lng }, map,
+        label: { text: poiIcons[p.type], fontSize: '20px' },
+        title: p.label, visible: false, zIndex: 10,
+        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0, strokeOpacity: 0, fillOpacity: 0 },
+      });
+      markers.push(marker);
+    });
+    console.log('All done');
+  } catch(e) { console.error('initMap error:', e); }
 }
 
 function toggleHike() {
@@ -301,11 +301,12 @@ function toggleHike() {
   map.setOptions({ styles: hikeOn ? hikeStyle : [] });
 
   polylines.forEach(({ line, halo, trail }) => {
+    const c = COLORS[trail.difficulty];
     line.setOptions(hikeOn
-      ? { strokeColor: trail.color, strokeOpacity: 1,    strokeWeight: 5.5 }
-      : { strokeColor: '#b8a98a',   strokeOpacity: 0.55, strokeWeight: 2.5 }
+      ? { strokeColor: c.stroke, strokeOpacity: 0.95, strokeWeight: 2.8 }
+      : { strokeColor: '#9a8a6a', strokeOpacity: 0.4,  strokeWeight: 1.5 }
     );
-    halo.setOptions({ strokeOpacity: hikeOn ? 0.28 : 0 });
+    halo.setOptions({ strokeOpacity: hikeOn ? 0.18 : 0 });
   });
 
   markers.forEach(m => m.setVisible(hikeOn));
@@ -319,13 +320,14 @@ function toggleHike() {
 
 function openSheet(t) {
   if (!hikeOn) return;
-  document.getElementById('sheetName').textContent = t.name;
+  const km = pathDistanceKm(t.path);
+  document.getElementById('sheetName').textContent = t.name || 'Unnamed trail';
   const diff = document.getElementById('sheetDiff');
-  diff.textContent = t.difficulty.charAt(0).toUpperCase() + t.difficulty.slice(1);
+  diff.textContent = SAC_LABEL[t.sac] || t.difficulty;
   diff.className = `sheet-diff ${t.difficulty}`;
-  document.getElementById('sheetDist').textContent = t.distance;
-  document.getElementById('sheetTime').textContent = t.time;
-  document.getElementById('sheetElev').textContent = t.elev;
+  document.getElementById('sheetDist').textContent = `${km.toFixed(1)} km`;
+  document.getElementById('sheetTime').textContent = estTime(km, t.difficulty);
+  document.getElementById('sheetElev').textContent = '—';
   document.getElementById('sheet').classList.add('open');
 }
 
@@ -345,13 +347,7 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <script async
-  src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&callback=initMap">
-</script>
-<script>
-  // Replace the placeholder in the Maps script src with the actual key
-  document.querySelectorAll('script[src*="maps.googleapis.com"]').forEach(s => {
-    s.src = s.src.replace('YOUR_API_KEY_HERE', GOOGLE_API_KEY);
-  });
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArytB7MYMy7kgMa9TGrbO9IT_ZQ00ry0M&callback=initMap">
 </script>
 
 </body>
