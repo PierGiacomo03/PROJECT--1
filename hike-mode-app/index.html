@@ -12,58 +12,438 @@
 <title>HikeMode – Pyrenees</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; overflow: hidden; font-family: 'Roboto', 'Helvetica Neue', sans-serif; }
+  html, body { height: 100%; overflow: hidden; font-family: 'Google Sans', 'Roboto', 'Helvetica Neue', sans-serif; background: #e8eaed; }
 
   #map { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
 
-  /* ── Top bar ── */
-  .topbar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
-    padding: env(safe-area-inset-top, 12px) 12px 0;
+  /* ── Top header (search pill + category chips) ── */
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 25;
+    padding: env(safe-area-inset-top, 14px) 12px 0;
     pointer-events: none;
   }
   .search-pill {
-    background: white; border-radius: 28px; box-shadow: 0 2px 12px rgba(0,0,0,.22);
-    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    background: white; border-radius: 30px;
+    box-shadow: 0 2px 8px rgba(60,64,67,.28), 0 1px 3px rgba(60,64,67,.15);
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 12px 12px 14px;
     pointer-events: auto;
   }
-  .search-pill span { color: #5f6368; font-size: 22px; }
-  .search-pill p  { color: #3c4043; font-size: 15px; font-weight: 500; flex: 1; }
-
-  /* ── Mode badge ── */
-  .mode-badge {
-    position: fixed; top: calc(env(safe-area-inset-top, 12px) + 68px);
-    left: 50%; transform: translateX(-50%); z-index: 20;
-    background: #137333; color: white; padding: 7px 20px; border-radius: 20px;
-    font-size: 13px; font-weight: 700; letter-spacing: .5px;
-    box-shadow: 0 2px 12px rgba(19,115,51,.45); opacity: 0;
-    transition: opacity .3s; pointer-events: none; white-space: nowrap;
-  }
-  .mode-badge.visible { opacity: 1; }
-
-  /* ── Bottom bar ── */
-  .bottombar {
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
-    padding: 12px 16px calc(env(safe-area-inset-bottom, 16px) + 12px);
-    background: white; box-shadow: 0 -2px 16px rgba(0,0,0,.12);
-    display: flex; align-items: center; gap: 12px;
-  }
-  .hike-btn {
-    flex: 1; background: #f1f3f4; border: none; border-radius: 14px;
-    padding: 16px; display: flex; align-items: center; justify-content: center;
-    gap: 10px; font-size: 16px; font-weight: 700; color: #3c4043;
-    cursor: pointer; transition: background .2s, color .2s;
-    min-height: 56px;
-  }
-  .hike-btn.active { background: #137333; color: white; }
-  .hike-btn .icon { font-size: 22px; }
-
-  .legend-btn {
-    background: #f1f3f4; border: none; border-radius: 14px;
-    width: 56px; height: 56px; font-size: 22px; cursor: pointer;
+  .search-back {
+    width: 28px; height: 28px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
   }
+  .search-back svg { width: 100%; height: 100%; }
+
+  /* Modern Google Maps pin — conic gradient masked by pin shape + white dot */
+  .g-logo {
+    width: 30px; height: 30px; flex-shrink: 0; position: relative;
+  }
+  .g-logo::before {
+    content: ''; position: absolute; inset: 0;
+    background: conic-gradient(from 0deg at 50% 36%,
+      #4285F4 0deg,
+      #34A853 100deg,
+      #34A853 180deg,
+      #FBBC05 230deg,
+      #EA4335 300deg,
+      #4285F4 360deg);
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2C7.58 2 4 5.58 4 10c0 5 5.5 10 7 11.5.5.5 1.5.5 2 0 1.5-1.5 7-6.5 7-11.5 0-4.42-3.58-8-8-8z'/></svg>") center / contain no-repeat;
+            mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2C7.58 2 4 5.58 4 10c0 5 5.5 10 7 11.5.5.5 1.5.5 2 0 1.5-1.5 7-6.5 7-11.5 0-4.42-3.58-8-8-8z'/></svg>") center / contain no-repeat;
+  }
+  .g-logo::after {
+    content: ''; position: absolute;
+    width: 9px; height: 9px;
+    background: white; border-radius: 50%;
+    top: 6px; left: 50%; transform: translateX(-50%);
+  }
+  .search-back {
+    display: none; background: none; border: none;
+    cursor: pointer; padding: 0;
+  }
+  .header.search-active .g-logo { display: none; }
+  .header.search-active .search-back { display: flex; }
+  .header.search-active .chips-row { display: none; }
+  .header.search-active .search-pill { box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .search-pill input {
+    border: none; outline: none; flex: 1; font-size: 16px; color: #3c4043;
+    background: transparent; padding: 4px 0;
+  }
+  .search-pill input::placeholder { color: #80868b; }
+  .mic-icon, .profile-pic { flex-shrink: 0; }
+  .mic-icon { color: #5f6368; font-size: 22px; padding: 0 4px; }
+  .profile-pic {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #1a73e8; color: white; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; border: none; cursor: pointer;
+    overflow: hidden; padding: 0;
+  }
+  .profile-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .signin-icon {
+    width: 18px; height: 18px;
+    background: white; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── Sign-in modal ── */
+  .signin-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .signin-overlay.open { display: flex; }
+  .signin-card {
+    background: white; border-radius: 12px;
+    max-width: 380px; width: 100%;
+    padding: 28px 24px 20px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,.3);
+  }
+  .signin-card h2 {
+    font-size: 20px; font-weight: 500; color: #202124;
+    margin-bottom: 6px;
+  }
+  .signin-card p {
+    font-size: 14px; color: #5f6368;
+    margin-bottom: 22px; line-height: 1.5;
+  }
+  .signin-google-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: white; border: 1px solid #dadce0;
+    border-radius: 4px; padding: 10px 22px;
+    font-size: 14px; font-weight: 500; color: #3c4043;
+    cursor: pointer; transition: box-shadow .2s;
+  }
+  .signin-google-btn:hover { box-shadow: 0 1px 3px rgba(60,64,67,.3); }
+  .signin-google-btn svg { width: 18px; height: 18px; }
+  .signin-close {
+    display: block; margin: 16px auto 0;
+    background: none; border: none; cursor: pointer;
+    color: #5f6368; font-size: 13px;
+  }
+  .user-menu {
+    position: fixed; top: calc(env(safe-area-inset-top, 14px) + 60px); right: 14px;
+    background: white; border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    padding: 14px 18px; z-index: 26;
+    display: none; min-width: 220px;
+  }
+  .user-menu.open { display: block; }
+  .user-menu .user-name { font-weight: 600; font-size: 14px; color: #202124; }
+  .user-menu .user-email { font-size: 12px; color: #5f6368; margin-top: 2px; }
+  .user-menu hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
+  .user-menu .signout {
+    background: none; border: none; cursor: pointer;
+    color: #1a73e8; font-size: 13px; font-weight: 500; padding: 0;
+  }
+
+  /* ── Category chips ── */
+  .chips-row {
+    display: flex; gap: 8px; padding: 10px 4px 4px;
+    overflow-x: auto; scrollbar-width: none;
+    pointer-events: auto;
+  }
+  .chips-row::-webkit-scrollbar { display: none; }
+  .chip {
+    background: white; border-radius: 20px;
+    box-shadow: 0 1px 3px rgba(60,64,67,.2), 0 1px 2px rgba(60,64,67,.1);
+    padding: 8px 14px; font-size: 14px; font-weight: 500; color: #3c4043;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+    border: none; cursor: pointer; flex-shrink: 0;
+    transition: background .2s, color .2s;
+  }
+  .chip .chip-icon { font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+  .chip .chip-icon svg { width: 18px; height: 18px; color: #202124; }
+  .chip.active .chip-icon svg { color: white; }
+  .chip.active { background: #137333; color: white; box-shadow: 0 2px 8px rgba(19,115,51,.4); }
+
+  /* ── Floating right controls ── */
+  .layer-fab {
+    position: fixed; right: 12px;
+    top: calc(env(safe-area-inset-top, 14px) + 124px);
+    width: 44px; height: 44px; border-radius: 50%;
+    background: white; border: none; cursor: pointer;
+    box-shadow: 0 2px 6px rgba(60,64,67,.28), 0 1px 2px rgba(60,64,67,.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: #5f6368; z-index: 22;
+  }
+
+  .locate-fab, .directions-fab {
+    position: fixed; right: 14px;
+    width: 56px; height: 56px; border-radius: 50%;
+    cursor: pointer; border: none;
+    box-shadow: 0 2px 8px rgba(60,64,67,.3), 0 1px 3px rgba(60,64,67,.15);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 22;
+  }
+  .locate-fab {
+    bottom: calc(env(safe-area-inset-bottom, 16px) + 156px);
+    background: white; font-size: 24px; color: #1a73e8;
+    transition: background .2s;
+  }
+  .locate-fab svg { transition: stroke .2s, fill .2s; }
+  .locate-fab.tracking svg { stroke: #1a73e8; fill: #1a73e8; }
+  .directions-fab {
+    bottom: calc(env(safe-area-inset-bottom, 16px) + 90px);
+    background: #00796b; font-size: 24px; color: white;
+  }
+
+  /* ── Google Maps watermark ── */
+  .gmaps-watermark {
+    position: fixed; left: 10px;
+    bottom: calc(env(safe-area-inset-bottom, 16px) + 76px);
+    font-size: 14px; font-weight: 600; color: #3c4043;
+    text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;
+    z-index: 20; pointer-events: none;
+    font-family: 'Product Sans', 'Google Sans', sans-serif;
+  }
+  .gmaps-watermark .g { color: #4285f4; }
+  .gmaps-watermark .o1 { color: #ea4335; }
+  .gmaps-watermark .o2 { color: #fbbc05; }
+  .gmaps-watermark .g2 { color: #4285f4; }
+  .gmaps-watermark .l { color: #34a853; }
+  .gmaps-watermark .e { color: #ea4335; }
+
+  /* ── Layers bottom sheet ── */
+  .layers-sheet {
+    position: fixed; bottom: -100%; left: 0; right: 0; z-index: 35;
+    background: white; border-radius: 18px 18px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,.18);
+    padding: 8px 20px calc(env(safe-area-inset-bottom, 16px) + 80px);
+    transition: bottom .35s cubic-bezier(.4,0,.2,1);
+    max-height: 85vh; overflow-y: auto;
+  }
+  .layers-sheet.open { bottom: 0; }
+  .layers-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 4px 16px;
+  }
+  .layers-header h3 { font-size: 22px; font-weight: 400; color: #3c4043; }
+  .layers-header .x {
+    background: none; border: none; cursor: pointer;
+    font-size: 22px; color: #5f6368; padding: 4px 8px;
+  }
+  .layers-divider { border: none; border-top: 1px solid #f0f0f0; margin: 16px 0; }
+  .layers-section-h4 {
+    font-size: 22px; font-weight: 400; color: #3c4043;
+    margin: 4px 4px 18px;
+  }
+
+  /* Map type cards: 3 large rounded squares */
+  .map-type-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    padding: 0 2px;
+  }
+  .map-type-card {
+    background: none; border: none; cursor: pointer; padding: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    font-size: 14px; color: #3c4043; font-weight: 400;
+  }
+  .map-type-thumb {
+    width: 100%; aspect-ratio: 1; border-radius: 14px;
+    border: 3px solid transparent;
+    overflow: hidden; position: relative;
+  }
+  .map-type-card.active .map-type-thumb { border-color: #00796b; }
+  .map-type-card.active span { color: #00796b; font-weight: 500; }
+
+  .map-type-thumb svg { width: 100%; height: 100%; display: block; }
+
+  /* Map details: grid of 4 square icons */
+  .map-details-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px 14px;
+    padding: 0 2px;
+  }
+  .detail-card {
+    background: none; border: none; cursor: pointer; padding: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    font-size: 13px; color: #3c4043; font-weight: 400; line-height: 1.15;
+    text-align: center;
+  }
+  .detail-thumb {
+    width: 100%; aspect-ratio: 1; border-radius: 14px;
+    border: 3px solid transparent;
+    overflow: hidden; position: relative;
+  }
+  .detail-card.active .detail-thumb { border-color: #00796b; }
+  .detail-card.active span { color: #00796b; font-weight: 500; }
+  .detail-thumb svg { width: 100%; height: 100%; display: block; }
+
+  /* ── Directions panel (Google Maps style: full takeover with two search fields) ── */
+  .directions-panel {
+    position: fixed; top: -100%; left: 0; right: 0; bottom: auto; z-index: 40;
+    background: #1a73e8;
+    padding: env(safe-area-inset-top, 14px) 12px 14px;
+    transition: top .3s cubic-bezier(.4,0,.2,1);
+  }
+  .directions-panel.open { top: 0; }
+  .directions-header {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 12px;
+  }
+  .directions-back {
+    background: none; border: none; cursor: pointer;
+    color: white; padding: 8px 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .endpoint-input-wrap {
+    display: flex; align-items: center; gap: 12px;
+    background: white; border-radius: 4px;
+    padding: 4px 14px; margin-bottom: 6px;
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px rgba(0,0,0,.12);
+  }
+  .endpoint-input-wrap.active { border-color: #1a73e8; }
+  .endpoint-dot {
+    width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  }
+  .endpoint-dot.start { background: #1a73e8; border: 2px solid #fff; box-shadow: 0 0 0 1px #1a73e8; }
+  .endpoint-dot.end   { background: #c62828; }
+  .endpoint-input {
+    flex: 1; border: none; outline: none;
+    font-size: 16px; color: #202124; padding: 12px 0;
+    background: transparent;
+  }
+  .endpoint-input::placeholder { color: #80868b; }
+  .endpoint-clear {
+    background: none; border: none; cursor: pointer;
+    color: #5f6368; font-size: 18px; padding: 4px 8px;
+  }
+
+  /* Autocomplete results list */
+  .suggestions {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: white;
+    padding: calc(env(safe-area-inset-top, 14px) + 138px) 0 0;
+    z-index: 39;
+    display: none;
+    min-height: 100vh;
+  }
+  .suggestions.from-search {
+    padding: calc(env(safe-area-inset-top, 14px) + 70px) 0 0;
+    z-index: 24;
+    min-height: 0;
+    max-height: 55vh;
+    overflow-y: auto;
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    -webkit-mask-image: linear-gradient(to bottom, black 0, black calc(100% - 22px), transparent 100%);
+            mask-image: linear-gradient(to bottom, black 0, black calc(100% - 22px), transparent 100%);
+  }
+  .map-tap-hint {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    top: calc(55vh + 8px);
+    background: #202124; color: white;
+    padding: 8px 16px; border-radius: 20px;
+    font-size: 13px; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    z-index: 25; pointer-events: none;
+    display: none;
+    white-space: nowrap;
+  }
+  .map-tap-hint.visible { display: block; }
+  .suggestions.visible { display: block; }
+  .suggestion-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 20px; cursor: pointer; border: none;
+    background: none; width: 100%; text-align: left;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .suggestion-row:hover { background: #f8f9fa; }
+  .suggestion-icon {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: #f1f3f4; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #5f6368;
+  }
+  .suggestion-icon svg { width: 22px; height: 22px; }
+  .suggestion-text { flex: 1; }
+  .suggestion-name { font-size: 16px; color: #202124; font-weight: 500; }
+  .suggestion-sub { font-size: 13px; color: #5f6368; margin-top: 2px; }
+
+  /* Find route bottom button */
+  .find-route-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 41;
+    background: white; padding: 12px 16px calc(env(safe-area-inset-bottom, 16px) + 12px);
+    box-shadow: 0 -2px 12px rgba(0,0,0,.12);
+    display: none;
+  }
+  .find-route-bar.visible { display: block; }
+  .find-route-btn {
+    width: 100%; padding: 14px;
+    background: #1a73e8; color: white;
+    border: none; border-radius: 30px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  /* Route summary card (after route found) */
+  .route-summary {
+    position: fixed; bottom: 76px; left: 12px; right: 12px; z-index: 22;
+    background: white; border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.18);
+    padding: 14px 18px;
+    display: none;
+  }
+  .route-summary.visible { display: block; }
+  .route-summary-title {
+    font-size: 15px; font-weight: 600; color: #1a73e8; margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .route-summary-title button {
+    background: none; border: none; cursor: pointer; color: #5f6368;
+    font-size: 18px;
+  }
+  .route-summary-stats {
+    display: flex; gap: 16px; font-size: 13px; color: #5f6368;
+  }
+  .route-summary-stats b { color: #202124; font-size: 15px; }
+
+  /* Pulsing user-location dot */
+  .user-dot-wrap {
+    position: relative; width: 22px; height: 22px;
+  }
+  .user-dot {
+    position: absolute; inset: 0; margin: auto;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #1a73e8; border: 3px solid white;
+    box-shadow: 0 0 0 1px #1a73e8, 0 2px 4px rgba(0,0,0,.3);
+    z-index: 2;
+  }
+  .user-pulse {
+    position: absolute; inset: 0; margin: auto;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(26,115,232,.35);
+    animation: userPulse 2s infinite ease-out;
+    z-index: 1;
+  }
+  @keyframes userPulse {
+    0%   { transform: scale(1); opacity: .6; }
+    100% { transform: scale(4.5); opacity: 0; }
+  }
+
+  /* ── Bottom tab bar ── */
+  .tab-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 25;
+    background: white; box-shadow: 0 -1px 4px rgba(60,64,67,.12);
+    display: flex; justify-content: space-around;
+    padding: 6px 0 calc(env(safe-area-inset-bottom, 8px) + 4px);
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    gap: 2px; padding: 6px 4px;
+    background: none; border: none; cursor: pointer;
+    color: #5f6368; font-size: 11px; font-weight: 500;
+  }
+  .tab.active { color: #1a73e8; }
+  .tab .tab-icon-wrap {
+    padding: 4px 14px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+  }
+  .tab.active .tab-icon-wrap { background: #e8f0fe; }
+  .tab .tab-icon { font-size: 20px; line-height: 1; }
 
   /* ── Trail info sheet (slides up on trail tap) ── */
   .sheet {
@@ -83,9 +463,9 @@
     display: inline-block; padding: 3px 10px; border-radius: 20px;
     font-size: 12px; font-weight: 700; margin-bottom: 14px;
   }
-  .sheet-diff.easy   { background: #e8f5e9; color: #2e7d32; }
-  .sheet-diff.medium { background: #fff8e1; color: #f57f17; }
-  .sheet-diff.hard   { background: #ffebee; color: #c62828; }
+  .sheet-diff.easy     { background: #e8f5e9; color: #2e7d32; }
+  .sheet-diff.moderate { background: #fff8e1; color: #f57f17; }
+  .sheet-diff.hard     { background: #ffebee; color: #c62828; }
   .sheet-stats {
     display: flex; gap: 0; border: 1px solid #f0f0f0; border-radius: 12px; overflow: hidden;
   }
@@ -121,28 +501,328 @@
 </head>
 <body>
 
-<!-- Top bar -->
-<div class="topbar">
+<!-- Header: search pill + category chips -->
+<div class="header" id="header">
   <div class="search-pill">
-    <span>☰</span>
-    <p>Pyrénées – Ordesa National Park</p>
-    <span>🔍</span>
+    <div class="g-logo"></div>
+    <button class="search-back" onclick="closeMainSearch()" title="Back">
+      <svg viewBox="0 0 24 24" fill="#5f6368"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </button>
+    <input type="text" placeholder="Search here" id="mainSearch"
+           onfocus="openMainSearch()" oninput="searchAsYouType(this.value)" />
+    <span class="mic-icon">
+      <svg viewBox="0 0 24 24" width="22" height="22">
+        <defs>
+          <linearGradient id="micG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#5b6470"/>
+            <stop offset="50%" stop-color="#2f3947"/>
+            <stop offset="100%" stop-color="#1a2230"/>
+          </linearGradient>
+        </defs>
+        <path fill="url(#micG)" d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z"/>
+        <path stroke="white" stroke-width=".6" fill="none" opacity=".55" d="M9.6 5h4.8M9.6 7h4.8M9.6 9h4.8"/>
+        <path fill="url(#micG)" d="M17 11a5 5 0 01-10 0H5.5a6.5 6.5 0 005.75 6.45V20H9v1.5h6V20h-2.25v-2.55A6.5 6.5 0 0018.5 11H17z"/>
+      </svg>
+    </span>
+    <button class="profile-pic" id="profilePic" onclick="onProfileClick()" title="Sign in">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+      </svg>
+    </button>
+  </div>
+  <div class="chips-row">
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg></span><span>Restaurants</span></button>
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg></span><span>Groceries</span></button>
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6-2c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zM6 20V8h12v12H6z"/></svg></span><span>Shopping</span></button>
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 7h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4zM7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3z"/></svg></span><span>Hotels</span></button>
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33 0 1.38 1.12 2.5 2.5 2.5.36 0 .69-.08 1-.21v7.21c0 .55-.45 1-1 1s-1-.45-1-1V14c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v16h10v-7.5h1.5v5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V9c0-.69-.28-1.32-.73-1.77zM12 10H6V5h6v5zm6 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg></span><span>Gas</span></button>
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.9 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg></span><span>Coffee</span></button>
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 5V3H3v2l8 9v5H6v2h12v-2h-5v-5l8-9zM7.43 7L5.66 5h12.69l-1.78 2H7.43z"/></svg></span><span>Bars</span></button>
+    <button class="chip"><span class="chip-icon"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></span><span>More</span></button>
   </div>
 </div>
-
-<!-- Mode badge -->
-<div class="mode-badge" id="badge">🥾 HIKE MODE ON</div>
 
 <!-- Map -->
 <div id="map"></div>
 
-<!-- Bottom bar -->
-<div class="bottombar">
-  <button class="hike-btn" id="hikeBtn" onclick="toggleHike()">
-    <span class="icon">🥾</span>
-    <span id="btnLabel">Hike Mode</span>
+<!-- Floating right buttons -->
+<button class="layer-fab" onclick="openLayers()" title="Layers">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 16l-5.5-3.18L4 14l8 5 8-5-2.5-1.18L12 16zm0-2.5L20 8 12 3 4 8l8 5.5z"/>
+  </svg>
+</button>
+<button class="locate-fab" title="Your location" onclick="smoothFlyToUser()">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M3 11L21 3L13 21L11 13Z"/>
+  </svg>
+</button>
+
+<!-- Layers bottom sheet (where Hike Mode lives) -->
+<div class="layers-sheet" id="layersSheet">
+  <div class="layers-header">
+    <h3>Map type</h3>
+    <button class="x" onclick="closeLayers()">✕</button>
+  </div>
+
+  <div class="map-type-grid">
+    <button class="map-type-card active">
+      <div class="map-type-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#dceac9"/>
+          <path d="M0 35 Q25 30 50 40 T100 38 L100 55 Q70 50 50 60 T0 55 Z" fill="#f5ecd6"/>
+          <path d="M70 0 Q60 25 75 50 T70 100" stroke="#a8d0e8" stroke-width="5" fill="none"/>
+          <path d="M-5 70 Q25 65 50 72 T100 68" stroke="#fff" stroke-width="6" fill="none"/>
+          <path d="M-5 70 Q25 65 50 72 T100 68" stroke="#fbbc05" stroke-width="3" fill="none"/>
+          <path d="M15 0 Q25 30 20 60 T30 100" stroke="#fff" stroke-width="5" fill="none"/>
+          <path d="M15 0 Q25 30 20 60 T30 100" stroke="#bbb" stroke-width="1" fill="none"/>
+        </svg>
+      </div>
+      <span>Default</span>
+    </button>
+    <button class="map-type-card">
+      <div class="map-type-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#3d4d3d"/>
+          <path d="M0 30 Q30 25 50 35 T100 30 L100 60 Q70 55 50 65 T0 60 Z" fill="#4a5d4a" opacity=".7"/>
+          <path d="M-5 45 Q30 40 50 50 T105 45" stroke="#525252" stroke-width="18" fill="none"/>
+          <path d="M-5 45 Q30 40 50 50 T105 45" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" fill="none"/>
+          <circle cx="20" cy="20" r="5" fill="#2d3d2d"/>
+          <circle cx="85" cy="80" r="7" fill="#2d3d2d"/>
+          <circle cx="30" cy="78" r="4" fill="#2d3d2d"/>
+        </svg>
+      </div>
+      <span>Satellite</span>
+    </button>
+    <button class="map-type-card">
+      <div class="map-type-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#d4ccb8"/>
+          <path d="M-5 20 Q30 10 55 22 T105 18" stroke="#8d7a55" stroke-width="1.3" fill="none"/>
+          <path d="M-5 35 Q30 26 55 38 T105 32" stroke="#8d7a55" stroke-width="1.3" fill="none"/>
+          <path d="M-5 50 Q30 41 55 53 T105 47" stroke="#8d7a55" stroke-width="1.3" fill="none"/>
+          <path d="M-5 64 Q30 56 55 68 T105 60" stroke="#8d7a55" stroke-width="1.3" fill="none"/>
+          <path d="M-5 78 Q30 70 55 82 T105 74" stroke="#8d7a55" stroke-width="1.3" fill="none"/>
+          <path d="M-5 92 Q30 84 55 96 T105 88" stroke="#8d7a55" stroke-width="1.3" fill="none"/>
+          <path d="M25 100 L55 5 L80 100 Z" fill="#fff" opacity=".55"/>
+          <path d="M55 5 L80 100 L25 100 Z" fill="none" stroke="#a89270" stroke-width=".6"/>
+        </svg>
+      </div>
+      <span>Terrain</span>
+    </button>
+  </div>
+
+  <hr class="layers-divider" />
+  <h4 class="layers-section-h4">Map details</h4>
+
+  <div class="map-details-grid">
+    <button class="detail-card" id="hikeDetailCard" onclick="toggleHike()">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#e8f0e0"/>
+          <polygon points="10,80 35,30 50,55 65,25 90,80" fill="#7a9468"/>
+          <polygon points="30,40 35,30 40,40" fill="#fff"/>
+          <polygon points="60,35 65,25 70,35" fill="#fff"/>
+          <path d="M0 85 Q25 70 50 78 T100 75" stroke="#c62828" stroke-width="3" fill="none" stroke-dasharray="4 3"/>
+        </svg>
+      </div>
+      <span>Hike Mode</span>
+    </button>
+
+    <button class="detail-card">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#e8eef5"/>
+          <path d="M-5 50 L105 50" stroke="#fff" stroke-width="14"/>
+          <path d="M-5 50 L105 50" stroke="#a78bfa" stroke-width="6"/>
+          <path d="M-5 50 L105 50" stroke="#fff" stroke-width="1" stroke-dasharray="3 3"/>
+          <path d="M-5 75 L105 75" stroke="#fff" stroke-width="10"/>
+          <path d="M-5 75 L105 75" stroke="#888" stroke-width="2"/>
+          <rect x="15" y="20" width="22" height="22" rx="4" fill="#1a73e8"/>
+          <text x="26" y="36" font-size="15" font-weight="700" fill="white" text-anchor="middle" font-family="Arial">M</text>
+          <rect x="62" y="58" width="22" height="14" rx="3" fill="#fbbc05"/>
+          <circle cx="67" cy="74" r="2.5" fill="#222"/>
+          <circle cx="79" cy="74" r="2.5" fill="#222"/>
+        </svg>
+      </div>
+      <span>Public transit</span>
+    </button>
+
+    <button class="detail-card">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#dde6ee"/>
+          <path d="M0 55 L100 55" stroke="#fff" stroke-width="18"/>
+          <path d="M40 0 L40 100" stroke="#fff" stroke-width="18"/>
+          <path d="M0 50 Q35 50 38 30" stroke="#34a853" stroke-width="4" fill="none"/>
+          <path d="M40 0 L40 25" stroke="#34a853" stroke-width="4"/>
+          <path d="M40 25 L40 55" stroke="#fbbc05" stroke-width="4"/>
+          <path d="M45 60 L100 60" stroke="#ea4335" stroke-width="4"/>
+          <path d="M40 60 L40 100" stroke="#ea4335" stroke-width="4"/>
+          <path d="M0 50 L35 50" stroke="#fbbc05" stroke-width="4"/>
+        </svg>
+      </div>
+      <span>Traffic</span>
+    </button>
+
+    <button class="detail-card">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#dceadc"/>
+          <circle cx="50" cy="50" r="22" fill="#fff"/>
+          <circle cx="50" cy="50" r="22" fill="none" stroke="#34a853" stroke-width="4"/>
+          <circle cx="50" cy="50" r="10" fill="#cce0cc"/>
+          <path d="M50 0 L50 28" stroke="#fff" stroke-width="14"/>
+          <path d="M50 72 L50 100" stroke="#fff" stroke-width="14"/>
+          <path d="M50 0 L50 28" stroke="#bbb" stroke-width="1"/>
+          <path d="M50 72 L50 100" stroke="#bbb" stroke-width="1"/>
+        </svg>
+      </div>
+      <span>Cycling</span>
+    </button>
+
+    <button class="detail-card">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#dce6f0"/>
+          <path d="M0 50 L100 50" stroke="#5b9bd5" stroke-width="20"/>
+          <path d="M0 50 L100 50" stroke="#a8c8e0" stroke-width="2" stroke-dasharray="3 3"/>
+          <path d="M50 50 L50 100" stroke="#5b9bd5" stroke-width="14"/>
+          <circle cx="50" cy="40" r="7" fill="#fbbc05"/>
+          <path d="M44 47 L44 65 L46 65 L46 80 L54 80 L54 65 L56 65 L56 47 Z" fill="#fbbc05"/>
+          <rect x="46" y="80" width="3" height="8" fill="#fbbc05"/>
+          <rect x="51" y="80" width="3" height="8" fill="#fbbc05"/>
+        </svg>
+      </div>
+      <span>Street View</span>
+    </button>
+
+    <button class="detail-card">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#e0eef5"/>
+          <path d="M0 60 Q30 55 50 60 T100 58 L100 100 L0 100 Z" fill="#dceadc"/>
+          <path d="M0 75 Q30 70 50 75 T100 72" stroke="#fff" stroke-width="5" fill="none"/>
+          <circle cx="35" cy="40" r="22" fill="#34a853"/>
+          <path d="M22 40 Q30 33 38 38 T48 40" stroke="white" stroke-width="3" fill="none"/>
+          <path d="M22 46 Q30 39 38 44 T48 46" stroke="white" stroke-width="3" fill="none"/>
+        </svg>
+      </div>
+      <span>Air quality</span>
+    </button>
+
+    <button class="detail-card">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#e0eef5"/>
+          <path d="M0 60 Q30 55 50 60 T100 58 L100 100 L0 100 Z" fill="#dceadc"/>
+          <path d="M0 75 Q30 70 50 75 T100 72" stroke="#fff" stroke-width="5" fill="none"/>
+          <circle cx="60" cy="40" r="22" fill="#ea4335"/>
+          <path d="M60 24 Q52 32 56 40 Q50 44 53 51 Q57 58 64 53 Q60 47 64 42 Q70 34 60 24 Z" fill="#fff"/>
+        </svg>
+      </div>
+      <span>Wildfires</span>
+    </button>
+
+    <button class="detail-card">
+      <div class="detail-thumb">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" fill="#cfe2cf"/>
+          <path d="M0 78 L100 78 L100 100 L0 100 Z" fill="#b8d4b8"/>
+          <polygon points="22,46 44,38 44,84 22,90" fill="#f0f0f0" stroke="#888" stroke-width="1"/>
+          <polygon points="44,38 44,84 60,86 60,42" fill="#d8d8d8" stroke="#888" stroke-width="1"/>
+          <polygon points="55,50 75,42 75,82 55,86" fill="#fff" stroke="#888" stroke-width="1"/>
+          <polygon points="75,42 75,82 86,80 86,46" fill="#d8d8d8" stroke="#888" stroke-width="1"/>
+          <line x1="28" y1="52" x2="38" y2="48" stroke="#bbb" stroke-width=".8"/>
+          <line x1="28" y1="64" x2="38" y2="60" stroke="#bbb" stroke-width=".8"/>
+          <line x1="28" y1="76" x2="38" y2="72" stroke="#bbb" stroke-width=".8"/>
+          <line x1="60" y1="56" x2="72" y2="52" stroke="#bbb" stroke-width=".8"/>
+          <line x1="60" y1="68" x2="72" y2="64" stroke="#bbb" stroke-width=".8"/>
+        </svg>
+      </div>
+      <span>3D buildings</span>
+    </button>
+  </div>
+</div>
+
+<!-- Google Maps watermark -->
+<div class="gmaps-watermark">
+  <span class="g">G</span><span class="o1">o</span><span class="o2">o</span><span class="g2">g</span><span class="l">l</span><span class="e">e</span> Maps
+</div>
+
+<!-- Suggestions overlay -->
+<div class="suggestions" id="suggestions"></div>
+
+<!-- Hint shown when search is active to invite map tap -->
+<div class="map-tap-hint" id="mapTapHint">👇 Or tap any point on the map</div>
+
+<!-- Route summary card -->
+<div class="route-summary" id="routeSummary">
+  <div class="route-summary-title">
+    <span>Route found</span>
+    <button onclick="clearRoute()">✕</button>
+  </div>
+  <div class="route-summary-stats">
+    <div><b id="routeDist">–</b><br/>Distance</div>
+    <div><b id="routeTime">–</b><br/>Est. time</div>
+    <div><b id="routeSegs">–</b><br/>Segments</div>
+  </div>
+</div>
+
+<!-- Sign-in overlay -->
+<div class="signin-overlay" id="signinOverlay">
+  <div class="signin-card">
+    <h2>Sign in to HikeMode</h2>
+    <p>Use your Google account to save trails, see your profile, and sync across devices.</p>
+    <div id="gsiButton"></div>
+    <button class="signin-google-btn" id="fallbackSignin" onclick="manualSignIn()" style="display:none">
+      <svg viewBox="0 0 48 48">
+        <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+        <path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.4l-6.5-5.5c-2 1.5-4.5 2.4-7.5 2.4-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.6 39.7 16.2 44 24 44z"/>
+        <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.5 5.5C41.8 35.2 44 30 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <button class="signin-close" onclick="closeSignin()">Cancel</button>
+  </div>
+</div>
+
+<!-- User menu (after sign-in) -->
+<div class="user-menu" id="userMenu">
+  <div class="user-name" id="userName">–</div>
+  <div class="user-email" id="userEmail">–</div>
+  <hr/>
+  <button class="signout" onclick="signOut()">Sign out</button>
+</div>
+
+<!-- Bottom tab bar -->
+<div class="tab-bar">
+  <button class="tab active">
+    <div class="tab-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24">
+        <path fill="#EA4335" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+        <circle cx="12" cy="9" r="2.6" fill="#fff"/>
+      </svg>
+    </div>
+    <span>Explore</span>
   </button>
-  <button class="legend-btn" onclick="toggleLegend()" title="Legend">📋</button>
+  <button class="tab">
+    <div class="tab-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24">
+        <path fill="none" stroke="#5f6368" stroke-width="2" stroke-linejoin="round" d="M7 4h10v17l-5-4-5 4V4z"/>
+        <circle cx="18" cy="5" r="3.5" fill="#EA4335"/>
+      </svg>
+    </div>
+    <span>You</span>
+  </button>
+  <button class="tab">
+    <div class="tab-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#5f6368">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+      </svg>
+    </div>
+    <span>Contribute</span>
+  </button>
 </div>
 
 <!-- Trail info sheet -->
@@ -158,20 +838,6 @@
   </div>
 </div>
 
-<!-- Legend sheet -->
-<div class="legend-sheet" id="legendSheet">
-  <div class="sheet-handle"></div>
-  <button class="close-sheet" onclick="toggleLegend()">✕</button>
-  <div class="legend-title">Trail difficulty</div>
-  <div class="legend-row"><div class="swatch" style="background:#2e7d32"></div>Easy</div>
-  <div class="legend-row"><div class="swatch" style="background:#f9a825"></div>Moderate</div>
-  <div class="legend-row"><div class="swatch" style="background:#c62828"></div>Hard / High Route</div>
-  <div class="legend-poi-row">
-    <div class="poi-item">⛰ Peak</div>
-    <div class="poi-item">🏠 Refuge</div>
-    <div class="poi-item">👁 Viewpoint</div>
-  </div>
-</div>
 
 <script>
 const GOOGLE_API_KEY = 'AIzaSyArytB7MYMy7kgMa9TGrbO9IT_ZQ00ry0M';
@@ -236,17 +902,8 @@ function estTime(km, difficulty) {
 
 let trails = [];
 
-const pois = [
-  { lat:42.678, lng:0.014,  type:'peak',      label:'Monte Perdido 3355m' },
-  { lat:42.710, lng:0.055,  type:'peak',      label:'Brèche de Roland 2807m' },
-  { lat:42.660, lng:-0.020, type:'refuge',    label:'Refugio Góriz' },
-  { lat:42.692, lng:0.090,  type:'refuge',    label:'Refuge de Sarradets' },
-  { lat:42.655, lng:0.010,  type:'viewpoint', label:'Mirador de la Pradera' },
-];
-
-let map, hikeOn = false, legendOpen = false;
+let map, hikeOn = false;
 const polylines = [];
-const markers   = [];
 
 async function initMap() {
   try {
@@ -265,6 +922,27 @@ async function initMap() {
     const res = await fetch('trails.json');
     trails = await res.json();
     console.log(`Loaded ${trails.length} real trails from OSM`);
+    buildGraph();
+    addUserLocationDot();
+    map.addListener('click', onMapTapForDestination);
+
+    // Init Google Places services for the live autocomplete
+    if (google.maps.places) {
+      autocompleteService = new google.maps.places.AutocompleteService();
+      placesService = new google.maps.places.PlacesService(map);
+    }
+
+    // Track when map center is on user location
+    const updateTracking = () => {
+      const c = map.getCenter();
+      if (!c) return;
+      const dLat = Math.abs(c.lat() - USER_LOCATION.lat);
+      const dLng = Math.abs(c.lng() - USER_LOCATION.lng);
+      const tracking = dLat < 0.0006 && dLng < 0.0006;
+      document.querySelector('.locate-fab').classList.toggle('tracking', tracking);
+    };
+    map.addListener('center_changed', updateTracking);
+    setTimeout(updateTracking, 200);
 
     trails.forEach(t => {
       const c = COLORS[t.difficulty];
@@ -282,16 +960,6 @@ async function initMap() {
       polylines.push({ line, halo, trail: t });
     });
 
-    const poiIcons = { peak: '⛰', refuge: '🏠', viewpoint: '👁' };
-    pois.forEach(p => {
-      const marker = new google.maps.Marker({
-        position: { lat: p.lat, lng: p.lng }, map,
-        label: { text: poiIcons[p.type], fontSize: '20px' },
-        title: p.label, visible: false, zIndex: 10,
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0, strokeOpacity: 0, fillOpacity: 0 },
-      });
-      markers.push(marker);
-    });
     console.log('All done');
   } catch(e) { console.error('initMap error:', e); }
 }
@@ -309,14 +977,660 @@ function toggleHike() {
     halo.setOptions({ strokeOpacity: hikeOn ? 0.18 : 0 });
   });
 
-  markers.forEach(m => m.setVisible(hikeOn));
 
-  document.getElementById('hikeBtn').classList.toggle('active', hikeOn);
-  document.getElementById('btnLabel').textContent = hikeOn ? 'Hike Mode ON' : 'Hike Mode';
-  document.getElementById('badge').classList.toggle('visible', hikeOn);
+  document.getElementById('hikeDetailCard').classList.toggle('active', hikeOn);
 
   if (!hikeOn) closeSheet();
 }
+
+function openLayers() {
+  document.getElementById('layersSheet').classList.add('open');
+}
+function closeLayers() {
+  document.getElementById('layersSheet').classList.remove('open');
+}
+
+// ─── ROUTING (offline Dijkstra over OSM trail network) ──────────────
+
+// Fake user location (for the demo blue dot — in production this is real GPS)
+const USER_LOCATION = { lat: 42.665, lng: -0.045 }; // near Pradera de Ordesa
+
+// Famous Pyrenees POIs for autocomplete
+const POI_DATABASE = [
+  // Peaks
+  { name: 'Monte Perdido',           sub: 'Peak · 3355m',            lat: 42.6745, lng: 0.0335,  icon: 'peak' },
+  { name: 'Vignemale',               sub: 'Peak · 3298m',            lat: 42.7711, lng: -0.1456, icon: 'peak' },
+  { name: 'Pic du Marboré',          sub: 'Peak · 3248m',            lat: 42.6987, lng: 0.0257,  icon: 'peak' },
+  { name: 'Pico Cilindro',           sub: 'Peak · 3325m',            lat: 42.6790, lng: 0.0291,  icon: 'peak' },
+  { name: 'Pico Soum de Ramond',     sub: 'Peak · 3263m',            lat: 42.6645, lng: 0.0440,  icon: 'peak' },
+  { name: 'Petit Vignemale',         sub: 'Peak · 3032m',            lat: 42.7741, lng: -0.1438, icon: 'peak' },
+  { name: 'Punta Suelza',            sub: 'Peak · 2972m',            lat: 42.7140, lng: 0.2347,  icon: 'peak' },
+  { name: 'Pic du Midi de Bigorre',  sub: 'Peak · 2877m',            lat: 42.9367, lng: 0.1419,  icon: 'peak' },
+  // Mountain passes & breches
+  { name: 'Brèche de Roland',        sub: 'Mountain pass · 2807m',   lat: 42.6957, lng: 0.0073,  icon: 'peak' },
+  { name: 'Port de Boucharo',        sub: 'Mountain pass · 2270m',   lat: 42.6953, lng: -0.0571, icon: 'peak' },
+  // Refuges
+  { name: 'Refugio de Góriz',        sub: 'Mountain refuge · 2200m', lat: 42.6604, lng: -0.0136, icon: 'home' },
+  { name: 'Refuge des Sarradets',    sub: 'Mountain refuge · 2587m', lat: 42.6989, lng: 0.0102,  icon: 'home' },
+  { name: 'Refugio de Bujaruelo',    sub: 'Mountain refuge',         lat: 42.6878, lng: -0.0813, icon: 'home' },
+  { name: 'Refuge Bayssellance',     sub: 'Mountain refuge · 2651m', lat: 42.7720, lng: -0.1280, icon: 'home' },
+  { name: 'Refuge des Oulettes',     sub: 'Mountain refuge · 2151m', lat: 42.7906, lng: -0.1577, icon: 'home' },
+  { name: 'Refuge des Espuguettes',  sub: 'Mountain refuge · 2027m', lat: 42.7180, lng: -0.0156, icon: 'home' },
+  // Cirques & viewpoints
+  { name: 'Cirque de Gavarnie',      sub: 'UNESCO viewpoint',        lat: 42.7079, lng: -0.0117, icon: 'eye' },
+  { name: 'Cirque d\'Estaubé',       sub: 'Cirque · valley',         lat: 42.7330, lng: 0.0617,  icon: 'eye' },
+  { name: 'Cirque de Troumouse',     sub: 'Glacial cirque',          lat: 42.7363, lng: 0.1198,  icon: 'eye' },
+  { name: 'Circo de Cotatuero',      sub: 'Glacial cirque',          lat: 42.6580, lng: -0.0500, icon: 'eye' },
+  { name: 'Mirador de Calcilarruego',sub: 'Viewpoint',               lat: 42.6395, lng: -0.0212, icon: 'eye' },
+  { name: 'Faja de Pelay',           sub: 'Iconic balcony trail',    lat: 42.6452, lng: -0.0271, icon: 'peak' },
+  { name: 'Gradas de Soaso',         sub: 'Natural staircase',       lat: 42.6520, lng: -0.0265, icon: 'water' },
+  // Waterfalls
+  { name: 'Cascada de Cola de Caballo',sub: 'Waterfall · iconic',    lat: 42.6655, lng: -0.0098, icon: 'water' },
+  { name: 'Cascada del Estrecho',    sub: 'Waterfall',               lat: 42.6420, lng: -0.0395, icon: 'water' },
+  { name: 'Cascada de la Cueva',     sub: 'Waterfall',               lat: 42.6395, lng: -0.0490, icon: 'water' },
+  // Lakes
+  { name: 'Lac de Gaube',            sub: 'Mountain lake · 1725m',   lat: 42.8404, lng: -0.1426, icon: 'water' },
+  { name: 'Lago de Marboré',         sub: 'Glacial lake · 2592m',    lat: 42.7060, lng: 0.0290,  icon: 'water' },
+  { name: 'Ibón de Plan',            sub: 'Mountain lake',           lat: 42.6700, lng: 0.2200,  icon: 'water' },
+  // Trailheads & towns
+  { name: 'Pradera de Ordesa',       sub: 'Trailhead · car park',    lat: 42.6378, lng: -0.0566, icon: 'tree' },
+  { name: 'Pont d\'Espagne',         sub: 'Trailhead',               lat: 42.8567, lng: -0.1395, icon: 'tree' },
+  { name: 'Torla',                   sub: 'Town',                    lat: 42.6245, lng: -0.1112, icon: 'town' },
+  { name: 'Gavarnie',                sub: 'Town · trailhead',        lat: 42.7355, lng: -0.0128, icon: 'town' },
+  { name: 'Cauterets',               sub: 'Town · spa',              lat: 42.8896, lng: -0.1131, icon: 'town' },
+  { name: 'Broto',                   sub: 'Town',                    lat: 42.6028, lng: -0.1234, icon: 'town' },
+  { name: 'Fanlo',                   sub: 'Town',                    lat: 42.5907, lng: 0.0080,  icon: 'town' },
+  { name: 'Santa Elena',             sub: 'Hamlet',                  lat: 42.7910, lng: -0.4180, icon: 'town' },
+];
+
+function getPoiIconSVG(type) {
+  const paths = {
+    peak: '<path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/>',
+    home: '<path d="M12 3l-9 8h3v9h12v-9h3l-9-8z"/>',
+    eye:  '<path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17a5 5 0 110-10 5 5 0 010 10zm0-8a3 3 0 100 6 3 3 0 000-6z"/>',
+    tree: '<path d="M12 2L4 12h3v8h10v-8h3L12 2z"/>',
+    town: '<path d="M15 11V5l-3-3-3 3v2H3v14h18V11h-6zM7 19H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm6 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2zm6 12h-2v-2h2v2zm0-4h-2v-2h2v2z"/>',
+    water:'<path d="M12 2C7 8 4 12 4 16a8 8 0 0016 0c0-4-3-8-8-14z"/>',
+  };
+  return `<svg viewBox="0 0 24 24" fill="currentColor">${paths[type] || paths.peak}</svg>`;
+}
+
+let graph = null;
+let routePolyline = null;
+let startSel = null; // { lat, lng, name }
+let endSel   = null;
+let startMarker = null, endMarker = null;
+let endSnapMarker = null;  // target dot on trail where route physically ends
+let offRouteLine = null;   // dotted connector from snap → destination
+let startOffRouteLine = null; // dotted connector from user dot → first trail node
+let activeInput = null;
+let autocompleteService = null;
+let placesService = null;
+
+// Google Maps style red drop-pin (SVG data URL)
+const RED_PIN_ICON = {
+  url: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="44" viewBox="0 0 32 44">
+      <defs>
+        <radialGradient id="rg" cx="50%" cy="38%" r="60%">
+          <stop offset="0%" stop-color="#ff5a4d"/>
+          <stop offset="100%" stop-color="#c5221f"/>
+        </radialGradient>
+      </defs>
+      <path fill="url(#rg)" stroke="#7c1310" stroke-width="0.6"
+        d="M16 1 C7.7 1 1 7.7 1 16 c0 11 14 26 14.5 26.6 a0.7 0.7 0 0 0 1 0 C17 42 31 27 31 16 31 7.7 24.3 1 16 1 z"/>
+      <circle cx="16" cy="15" r="4.5" fill="#7c1310"/>
+    </svg>`),
+};
+function redPin(pos) {
+  return new google.maps.Marker({
+    position: pos, map,
+    icon: { url: RED_PIN_ICON.url, scaledSize: new google.maps.Size(32, 44), anchor: new google.maps.Point(16, 44) },
+    zIndex: 50,
+  });
+}
+function snapDot(pos) {
+  return new google.maps.Marker({
+    position: pos, map,
+    icon: {
+      url: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+          <circle cx="11" cy="11" r="10" fill="white" stroke="#202124" stroke-width="2.5"/>
+          <circle cx="11" cy="11" r="4" fill="#202124"/>
+        </svg>`),
+      scaledSize: new google.maps.Size(22, 22),
+      anchor: new google.maps.Point(11, 11),
+    },
+    zIndex: 40,
+  });
+}
+
+// Min-heap for fast Dijkstra
+class MinHeap {
+  constructor() { this.h = []; }
+  get size() { return this.h.length; }
+  push(item) {
+    this.h.push(item);
+    let i = this.h.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (this.h[p].d <= this.h[i].d) break;
+      [this.h[p], this.h[i]] = [this.h[i], this.h[p]]; i = p;
+    }
+  }
+  pop() {
+    const top = this.h[0];
+    const last = this.h.pop();
+    if (this.h.length) {
+      this.h[0] = last;
+      let i = 0;
+      while (true) {
+        const l = 2*i+1, r = 2*i+2;
+        let s = i;
+        if (l < this.h.length && this.h[l].d < this.h[s].d) s = l;
+        if (r < this.h.length && this.h[r].d < this.h[s].d) s = r;
+        if (s === i) break;
+        [this.h[s], this.h[i]] = [this.h[i], this.h[s]]; i = s;
+      }
+    }
+    return top;
+  }
+}
+
+function segDistanceKm(a, b) {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const lat1 = a.lat * Math.PI / 180, lat2 = b.lat * Math.PI / 180;
+  const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function buildGraph() {
+  const CELL = 0.00022; // ~25m clustering — bridges small data gaps
+  const cellMap = {};
+  const nodes = [];
+  const adj = [];
+
+  function nodeFor(p) {
+    const k = `${Math.round(p.lat/CELL)}_${Math.round(p.lng/CELL)}`;
+    if (cellMap[k] !== undefined) return cellMap[k];
+    const id = nodes.length;
+    nodes.push({ lat: p.lat, lng: p.lng });
+    adj.push([]);
+    cellMap[k] = id;
+    return id;
+  }
+
+  // Each edge stores the FULL geometry between two distinct graph nodes
+  // (including intermediate trail points clustered into the same node).
+  trails.forEach((t, ti) => {
+    let prevId = nodeFor(t.path[0]);
+    let segCoords = [t.path[0]];
+
+    for (let i = 1; i < t.path.length; i++) {
+      const curId = nodeFor(t.path[i]);
+      segCoords.push(t.path[i]);
+      if (curId === prevId) continue;
+
+      // Distinct node reached — emit edge with the accumulated geometry
+      let w = 0;
+      for (let j = 1; j < segCoords.length; j++) w += segDistanceKm(segCoords[j-1], segCoords[j]);
+      const fwd = segCoords.slice();
+      const bwd = segCoords.slice().reverse();
+      adj[prevId].push({ to: curId, weight: w, coords: fwd, difficulty: t.difficulty });
+      adj[curId].push({ to: prevId, weight: w, coords: bwd, difficulty: t.difficulty });
+
+      prevId = curId;
+      segCoords = [t.path[i]];
+    }
+  });
+
+  graph = { nodes, adj };
+  let edgeCount = 0; adj.forEach(a => edgeCount += a.length);
+  console.log(`Graph built: ${nodes.length} nodes, ${edgeCount/2} edges`);
+}
+
+function nearestNode(point) {
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < graph.nodes.length; i++) {
+    const n = graph.nodes[i];
+    const d = (n.lat - point.lat) ** 2 + (n.lng - point.lng) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+function dijkstra(startId, endId) {
+  const dist = new Map(); dist.set(startId, 0);
+  const prev = new Map();
+  const heap = new MinHeap();
+  heap.push({ id: startId, d: 0 });
+
+  while (heap.size) {
+    const { id, d } = heap.pop();
+    if (id === endId) break;
+    if (d > (dist.get(id) ?? Infinity)) continue;
+    for (const e of graph.adj[id]) {
+      const nd = d + e.weight;
+      if (nd < (dist.get(e.to) ?? Infinity)) {
+        dist.set(e.to, nd);
+        prev.set(e.to, { from: id, edge: e });
+        heap.push({ id: e.to, d: nd });
+      }
+    }
+  }
+
+  if (!dist.has(endId)) return null;
+  const edges = [];
+  let cur = endId;
+  while (prev.has(cur)) {
+    edges.unshift(prev.get(cur).edge);
+    cur = prev.get(cur).from;
+  }
+  return { edges, distance: dist.get(endId) };
+}
+
+// ─── Smooth fly-to (pan + zoom animated together) ───────────────────
+const TARGET_RECENTER_ZOOM = 14;
+function smoothFlyToUser() {
+  if (!map) return;
+  const startC = map.getCenter();
+  const startCLat = startC.lat(), startCLng = startC.lng();
+  const startZ = map.getZoom();
+  const targetZ = TARGET_RECENTER_ZOOM;
+  const duration = 900; // ms
+  const t0 = performance.now();
+  function easeInOut(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; }
+  function step(now) {
+    const t = Math.min((now - t0) / duration, 1);
+    const e = easeInOut(t);
+    map.setCenter({
+      lat: startCLat + (USER_LOCATION.lat - startCLat) * e,
+      lng: startCLng + (USER_LOCATION.lng - startCLng) * e,
+    });
+    map.setZoom(startZ + (targetZ - startZ) * e);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ─── User location pulsing blue dot ─────────────────────────────────
+function addUserLocationDot() {
+  class UserDotOverlay extends google.maps.OverlayView {
+    constructor(position) { super(); this.position = position; }
+    onAdd() {
+      this.div = document.createElement('div');
+      this.div.className = 'user-dot-wrap';
+      this.div.style.position = 'absolute';
+      this.div.innerHTML = '<div class="user-pulse"></div><div class="user-dot"></div>';
+      this.getPanes().overlayMouseTarget.appendChild(this.div);
+    }
+    draw() {
+      const proj = this.getProjection();
+      if (!proj) return;
+      const p = proj.fromLatLngToDivPixel(new google.maps.LatLng(this.position.lat, this.position.lng));
+      this.div.style.left = (p.x - 11) + 'px';
+      this.div.style.top  = (p.y - 11) + 'px';
+    }
+    onRemove() { this.div.remove(); this.div = null; }
+  }
+  const o = new UserDotOverlay(USER_LOCATION);
+  o.setMap(map);
+}
+
+function clearRouteVisuals() {
+  if (routePolyline)     { routePolyline.setMap(null);     routePolyline = null; }
+  if (offRouteLine)      { offRouteLine.setMap(null);      offRouteLine = null; }
+  if (startOffRouteLine) { startOffRouteLine.setMap(null); startOffRouteLine = null; }
+  if (endSnapMarker)     { endSnapMarker.setMap(null);     endSnapMarker = null; }
+}
+function clearRoute() {
+  clearRouteVisuals();
+  if (endMarker)   { endMarker.setMap(null);   endMarker = null; }
+  if (startMarker) { startMarker.setMap(null); startMarker = null; }
+  endSel = null;
+  document.getElementById('routeSummary').classList.remove('visible');
+  document.getElementById('mainSearch').value = '';
+}
+
+// ─── Top search bar (main entry point for routing) ──────────────────
+function openMainSearch() {
+  activeInput = 'mainSearch';
+  document.getElementById('header').classList.add('search-active');
+  document.getElementById('mainSearch').placeholder = 'Search a spot or tap a point on the map…';
+  document.getElementById('mapTapHint').classList.add('visible');
+  showMainSearchSuggestions('');
+}
+
+function searchAsYouType(query) {
+  const q = (query || '').trim();
+  if (!q || !autocompleteService) {
+    showMainSearchSuggestions(q);
+    return;
+  }
+  autocompleteService.getPlacePredictions({
+    input: q,
+    bounds: new google.maps.LatLngBounds(
+      { lat: BOUNDS.south, lng: BOUNDS.west },
+      { lat: BOUNDS.north, lng: BOUNDS.east }
+    ),
+    componentRestrictions: { country: ['es', 'fr'] }, // restrict to Spain & France
+  }, (predictions, status) => {
+    if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions || !predictions.length) {
+      showMainSearchSuggestions(q);
+      return;
+    }
+    // We can't filter by lat/lng before fetching details — but we'll re-check on pick.
+    renderGooglePredictions(predictions);
+  });
+}
+
+function isInsidePyrenees(lat, lng) {
+  return lat >= BOUNDS.south && lat <= BOUNDS.north
+      && lng >= BOUNDS.west  && lng <= BOUNDS.east;
+}
+
+function renderGooglePredictions(predictions) {
+  const box = document.getElementById('suggestions');
+  box.classList.add('from-search');
+  let html = `
+    <button class="suggestion-row" onclick="closeMainSearch()" style="background:#fafafa">
+      <div class="suggestion-icon" style="background:#fff">
+        <svg viewBox="0 0 24 24" fill="#5f6368"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </div>
+      <div class="suggestion-text">
+        <div class="suggestion-name" style="color:#5f6368;font-weight:400">Back to map</div>
+      </div>
+    </button>`;
+  predictions.slice(0, 10).forEach((p, i) => {
+    const main = (p.structured_formatting && p.structured_formatting.main_text) || p.description;
+    const sub  = (p.structured_formatting && p.structured_formatting.secondary_text) || '';
+    html += `
+      <button class="suggestion-row" data-pid="${p.place_id}" data-name="${main.replace(/"/g, '&quot;')}">
+        <div class="suggestion-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        </div>
+        <div class="suggestion-text">
+          <div class="suggestion-name">${main}</div>
+          <div class="suggestion-sub">${sub}</div>
+        </div>
+      </button>`;
+  });
+  box.innerHTML = html;
+  box.classList.add('visible');
+  box.querySelectorAll('button[data-pid]').forEach(btn => {
+    btn.addEventListener('click', () => pickGooglePlace(btn.dataset.pid, btn.dataset.name));
+  });
+}
+
+function pickGooglePlace(placeId, name) {
+  if (!placesService) return;
+  placesService.getDetails({ placeId, fields: ['name', 'geometry'] }, (place, status) => {
+    if (status !== google.maps.places.PlacesServiceStatus.OK || !place.geometry) {
+      alert('Could not fetch place details');
+      return;
+    }
+    const lat = place.geometry.location.lat();
+    const lng = place.geometry.location.lng();
+    if (!isInsidePyrenees(lat, lng)) {
+      alert(`"${name}" is outside the Pyrenees area covered by this app.`);
+      return;
+    }
+    document.getElementById('mainSearch').value = name;
+    closeMainSearch();
+
+    clearRouteVisuals();
+    if (endMarker)   { endMarker.setMap(null);   endMarker = null; }
+    if (startMarker) { startMarker.setMap(null); startMarker = null; }
+    startSel = { lat: USER_LOCATION.lat, lng: USER_LOCATION.lng, name: 'Your location' };
+    endSel   = { lat, lng, name };
+    endMarker = redPin({ lat, lng });
+    computeRoute();
+  });
+}
+
+function showMainSearchSuggestions(query) {
+  const box = document.getElementById('suggestions');
+  box.classList.add('from-search');
+  const q = (query || '').toLowerCase().trim();
+  let list = POI_DATABASE;
+  if (q) list = list.filter(p => p.name.toLowerCase().includes(q) || p.sub.toLowerCase().includes(q));
+
+  let html = `
+    <button class="suggestion-row" onclick="closeMainSearch()" style="background:#fafafa">
+      <div class="suggestion-icon" style="background:#fff">
+        <svg viewBox="0 0 24 24" fill="#5f6368"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </div>
+      <div class="suggestion-text">
+        <div class="suggestion-name" style="color:#5f6368;font-weight:400">Back to map</div>
+      </div>
+    </button>`;
+  if (list.length === 0) {
+    html += `<div style="padding:24px;text-align:center;color:#80868b;font-size:14px">No matches in the Pyrenees catalog</div>`;
+  } else {
+    list.slice(0, 12).forEach(p => {
+      const idx = POI_DATABASE.indexOf(p);
+      html += `
+        <button class="suggestion-row" onclick="pickMainSearchResult(${idx})">
+          <div class="suggestion-icon">${getPoiIconSVG(p.icon)}</div>
+          <div class="suggestion-text">
+            <div class="suggestion-name">${p.name}</div>
+            <div class="suggestion-sub">${p.sub}</div>
+          </div>
+        </button>`;
+    });
+  }
+  box.innerHTML = html;
+  box.classList.add('visible');
+}
+
+function closeMainSearch() {
+  document.getElementById('suggestions').classList.remove('visible', 'from-search');
+  document.getElementById('header').classList.remove('search-active');
+  document.getElementById('mainSearch').placeholder = 'Search here';
+  document.getElementById('mainSearch').blur();
+  document.getElementById('mapTapHint').classList.remove('visible');
+  activeInput = null;
+}
+
+function onMapTapForDestination(event) {
+  // Only react if main search is active
+  if (!document.getElementById('header').classList.contains('search-active')) return;
+  const tapped = { lat: event.latLng.lat(), lng: event.latLng.lng() };
+
+  document.getElementById('mainSearch').value = `Map point (${tapped.lat.toFixed(4)}, ${tapped.lng.toFixed(4)})`;
+  closeMainSearch();
+
+  clearRouteVisuals();
+  if (endMarker)   { endMarker.setMap(null);   endMarker = null; }
+  if (startMarker) { startMarker.setMap(null); startMarker = null; }
+  startSel = { lat: USER_LOCATION.lat, lng: USER_LOCATION.lng, name: 'Your location' };
+  endSel   = { lat: tapped.lat, lng: tapped.lng, name: 'Selected point' };
+  endMarker = redPin(tapped);
+
+  computeRoute();
+}
+
+function pickMainSearchResult(poiIndex) {
+  const p = POI_DATABASE[poiIndex];
+  document.getElementById('mainSearch').value = p.name;
+  closeMainSearch();
+
+  clearRouteVisuals();
+  if (endMarker)   { endMarker.setMap(null);   endMarker = null; }
+  if (startMarker) { startMarker.setMap(null); startMarker = null; }
+  startSel = { lat: USER_LOCATION.lat, lng: USER_LOCATION.lng, name: 'Your location' };
+  endSel   = { lat: p.lat, lng: p.lng, name: p.name };
+  endMarker = redPin({ lat: p.lat, lng: p.lng });
+
+  computeRoute();
+}
+
+function computeRoute() {
+  if (!graph) return;
+  const s = startSel || { lat: USER_LOCATION.lat, lng: USER_LOCATION.lng, name: 'Your location' };
+  const e = endSel;
+  if (!e) return;
+  clearRouteVisuals();
+
+  const startId = nearestNode(s);
+  const endId   = nearestNode(e);
+  const startSnap = graph.nodes[startId];
+  const endSnap   = graph.nodes[endId];
+  const result = dijkstra(startId, endId);
+  if (!result || result.edges.length === 0) {
+    // Fallback: no OSM trail connection — show a straight-line estimate honestly
+    const crowKm = segDistanceKm(s, e);
+    routePolyline = new google.maps.Polyline({
+      path: [s, e],
+      strokeOpacity: 0, strokeWeight: 0,
+      icons: [{
+        icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#ea4335', scale: 4 },
+        offset: '0', repeat: '14px',
+      }],
+      map, zIndex: 25,
+    });
+    document.getElementById('routeDist').textContent = `~${crowKm.toFixed(1)} km`;
+    document.getElementById('routeTime').textContent = '—';
+    document.getElementById('routeSegs').textContent = 'off-trail';
+    document.getElementById('routeSummary').classList.add('visible');
+    document.querySelector('.route-summary-title span').textContent = 'Not connected via marked trails';
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(s); bounds.extend(e);
+    map.fitBounds(bounds, 80);
+    return;
+  }
+  document.querySelector('.route-summary-title span').textContent = 'Route found';
+
+  // Stitch full edge geometry (TRAIL ONLY — no connector lines yet)
+  const coords = [];
+  result.edges.forEach((edge, i) => {
+    const ec = edge.coords;
+    if (i === 0) coords.push(...ec);
+    else coords.push(...ec.slice(1));
+  });
+
+  routePolyline = new google.maps.Polyline({
+    path: coords, map,
+    strokeColor: '#1a73e8', strokeOpacity: 1, strokeWeight: 7,
+    zIndex: 25,
+  });
+
+  // If the destination is off-trail (> ~40m from nearest node), draw dashed connector + snap dot
+  const offTrailDistEnd = segDistanceKm(e, endSnap) * 1000;
+  if (offTrailDistEnd > 40) {
+    endSnapMarker = snapDot(endSnap);
+    offRouteLine = new google.maps.Polyline({
+      path: [endSnap, e],
+      strokeOpacity: 0, strokeWeight: 0,
+      icons: [{
+        icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#5f6368', scale: 3 },
+        offset: '0', repeat: '10px',
+      }],
+      map, zIndex: 24,
+    });
+  }
+
+  // Same for the start side: dashed connector from user dot to first trail node
+  const offTrailDistStart = segDistanceKm(s, startSnap) * 1000;
+  if (offTrailDistStart > 40) {
+    startOffRouteLine = new google.maps.Polyline({
+      path: [s, startSnap],
+      strokeOpacity: 0, strokeWeight: 0,
+      icons: [{
+        icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#5f6368', scale: 3 },
+        offset: '0', repeat: '10px',
+      }],
+      map, zIndex: 24,
+    });
+  }
+
+  const counts = { easy: 0, moderate: 0, hard: 0 };
+  result.edges.forEach(edge => counts[edge.difficulty]++);
+  const dominant = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+
+  document.getElementById('routeDist').textContent = `${result.distance.toFixed(1)} km`;
+  document.getElementById('routeTime').textContent = estTime(result.distance, dominant);
+  document.getElementById('routeSegs').textContent = result.edges.length;
+  document.getElementById('routeSummary').classList.add('visible');
+
+  // Fit map to route + endpoints
+  const bounds = new google.maps.LatLngBounds();
+  coords.forEach(c => bounds.extend(c));
+  bounds.extend(e);
+  bounds.extend(s);
+  map.fitBounds(bounds, 60);
+}
+
+// ─── GOOGLE SIGN-IN ─────────────────────────────────────────────────
+// Replace with your real OAuth Client ID from Google Cloud Console:
+// APIs & Services → Credentials → Create Credentials → OAuth client ID → Web app
+const GOOGLE_CLIENT_ID = '289817354846-o2s7e18qeranob2fh5jjvanod8vfc5aj.apps.googleusercontent.com';
+
+let currentUser = null;
+
+function onProfileClick() {
+  if (currentUser) {
+    document.getElementById('userMenu').classList.toggle('open');
+  } else {
+    openSignin();
+  }
+}
+
+function openSignin() {
+  document.getElementById('signinOverlay').classList.add('open');
+  if (window.google && window.google.accounts && GOOGLE_CLIENT_ID !== 'YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com') {
+    google.accounts.id.renderButton(
+      document.getElementById('gsiButton'),
+      { theme: 'outline', size: 'large', text: 'signin_with' }
+    );
+  } else {
+    document.getElementById('fallbackSignin').style.display = 'inline-flex';
+  }
+}
+function closeSignin() {
+  document.getElementById('signinOverlay').classList.remove('open');
+}
+
+function manualSignIn() {
+  alert("To enable real Google login:\n\n1. Go to Google Cloud Console → APIs & Services → Credentials\n2. Create OAuth 2.0 Client ID (type: Web application)\n3. Add http://localhost:8000 to authorized origins\n4. Copy the Client ID and replace GOOGLE_CLIENT_ID in index.html");
+}
+
+function handleCredentialResponse(response) {
+  const payload = JSON.parse(atob(response.credential.split('.')[1]));
+  currentUser = {
+    name: payload.name,
+    email: payload.email,
+    picture: payload.picture,
+  };
+  const btn = document.getElementById('profilePic');
+  btn.innerHTML = `<img src="${currentUser.picture}" alt="${currentUser.name}" referrerpolicy="no-referrer"/>`;
+  document.getElementById('userName').textContent = currentUser.name;
+  document.getElementById('userEmail').textContent = currentUser.email;
+  closeSignin();
+}
+
+function signOut() {
+  currentUser = null;
+  document.getElementById('userMenu').classList.remove('open');
+  document.getElementById('profilePic').innerHTML = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+    </svg>`;
+  if (window.google && window.google.accounts) {
+    google.accounts.id.disableAutoSelect();
+  }
+}
+
+window.addEventListener('load', () => {
+  if (window.google && window.google.accounts && GOOGLE_CLIENT_ID !== 'YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com') {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+    });
+  }
+});
 
 function openSheet(t) {
   if (!hikeOn) return;
@@ -335,10 +1649,6 @@ function closeSheet() {
   document.getElementById('sheet').classList.remove('open');
 }
 
-function toggleLegend() {
-  legendOpen = !legendOpen;
-  document.getElementById('legendSheet').classList.toggle('open', legendOpen);
-}
 
 // Register service worker for PWA installability
 if ('serviceWorker' in navigator) {
@@ -346,8 +1656,9 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script async
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArytB7MYMy7kgMa9TGrbO9IT_ZQ00ry0M&callback=initMap">
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArytB7MYMy7kgMa9TGrbO9IT_ZQ00ry0M&callback=initMap&libraries=places">
 </script>
 
 </body>
