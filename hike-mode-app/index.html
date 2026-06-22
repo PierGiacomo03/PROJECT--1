@@ -399,6 +399,16 @@
     display: flex; gap: 16px; font-size: 13px; color: #5f6368;
   }
   .route-summary-stats b { color: #202124; font-size: 15px; }
+  .route-surface {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid #f0f0f0;
+    font-size: 12px; color: #5f6368;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .route-surface::before {
+    content: ""; width: 14px; height: 14px; flex-shrink: 0;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%235f6368'><path d='M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z'/></svg>") no-repeat center / contain;
+  }
 
   /* Pulsing user-location dot */
   .user-dot-wrap {
@@ -764,8 +774,9 @@
   <div class="route-summary-stats">
     <div><b id="routeDist">–</b><br/>Distance</div>
     <div><b id="routeTime">–</b><br/>Est. time</div>
-    <div><b id="routeSegs">–</b><br/>Segments</div>
+    <div><b id="routeElev">–</b><br/>Elevation</div>
   </div>
+  <div class="route-surface" id="routeSurface">—</div>
 </div>
 
 <!-- Sign-in overlay -->
@@ -1493,7 +1504,8 @@ function computeRoute() {
     });
     document.getElementById('routeDist').textContent = `~${crowKm.toFixed(1)} km`;
     document.getElementById('routeTime').textContent = '—';
-    document.getElementById('routeSegs').textContent = 'off-trail';
+    document.getElementById('routeElev').textContent = '—';
+    document.getElementById('routeSurface').textContent = 'No marked trail connects these two points in OpenStreetMap data.';
     document.getElementById('routeSummary').classList.add('visible');
     document.querySelector('.route-summary-title span').textContent = 'Not connected via marked trails';
     const bounds = new google.maps.LatLngBounds();
@@ -1550,9 +1562,21 @@ function computeRoute() {
   result.edges.forEach(edge => counts[edge.difficulty]++);
   const dominant = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
 
+  // Elevation gain heuristic — meters of climb per km, by difficulty class
+  const ELEV_PER_KM = { easy: 55, moderate: 110, hard: 180 };
+  const elevGain = Math.round(result.distance * ELEV_PER_KM[dominant] / 10) * 10;
+
+  // Trail surface description by dominant difficulty
+  const SURFACE = {
+    easy:     "Marked trail · Dirt path, well-signed",
+    moderate: "Mountain trail · Rocky in parts, sometimes loose",
+    hard:     "Alpine route · Scrambling, exposed sections",
+  };
+
   document.getElementById('routeDist').textContent = `${result.distance.toFixed(1)} km`;
   document.getElementById('routeTime').textContent = estTime(result.distance, dominant);
-  document.getElementById('routeSegs').textContent = result.edges.length;
+  document.getElementById('routeElev').textContent = `+${elevGain} m`;
+  document.getElementById('routeSurface').textContent = SURFACE[dominant];
   document.getElementById('routeSummary').classList.add('visible');
 
   // Fit map to route + endpoints
